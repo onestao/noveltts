@@ -108,9 +108,29 @@ function app() {
     },
 
     resetProviderForm() {
-      this.providerForm = { name: '', type: 'openai_compatible', base_url: '', api_key: '', default_model: '', default_voice: '', _editing: false };
+      this.providerForm = { name: '', type: 'openai_compatible', base_url: '', api_key: '', cookie: '', default_model: '', default_voice: '', _editing: false };
       this.availableModels = [];
       this.availableVoices = [];
+    },
+
+    onProviderTypeChange() {
+      this.availableModels = [];
+      this.availableVoices = [];
+      const t = this.providerForm.type;
+      if (t === 'mimo') {
+        this.providerForm.base_url = 'https://api.xiaomimimo.com/v1';
+        this.providerForm.name = this.providerForm.name || 'mimo';
+      } else if (t === 'doubao') {
+        this.providerForm.base_url = 'wss://amantha.doubao.com';
+        this.providerForm.name = this.providerForm.name || 'doubao';
+        this.providerForm.default_model = 'doubao-tts';
+      } else if (t === 'minimax') {
+        this.providerForm.base_url = 'https://api.minimaxi.com/v1';
+        this.providerForm.name = this.providerForm.name || 'minimax';
+      } else {
+        this.providerForm.base_url = '';
+        this.providerForm.name = this.providerForm.name || '';
+      }
     },
 
     editProvider(p) {
@@ -202,6 +222,10 @@ function app() {
         default_model: this.providerForm.default_model,
         default_voice: this.providerForm.default_voice,
       };
+
+      if (this.providerForm.type === 'doubao' && this.providerForm.cookie) {
+        payload.extra = { cookies: this.providerForm.cookie.split(/[;\n]/).map(c => c.trim()).filter(c => c) };
+      }
 
       try {
         await API.addProvider(payload);

@@ -173,36 +173,71 @@
                   <input x-model="providerForm.name" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="例如：siliconflow"
                          :disabled="providerForm._editing">
                 </div>
+
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">类型</label>
-                  <select x-model="providerForm.type" class="w-full border rounded-lg px-3 py-2 text-sm">
-                    <option value="openai_compatible">OpenAI 兼容 (SiliconFlow / OpenAI)</option>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">引擎类型</label>
+                  <select x-model="providerForm.type" @change="onProviderTypeChange()" class="w-full border rounded-lg px-3 py-2 text-sm">
+                    <option value="openai_compatible">OpenAI 兼容</option>
                     <option value="mimo">小米 MiMo TTS</option>
                     <option value="doubao">豆包 TTS (WebSocket)</option>
                     <option value="minimax">MiniMax T2A</option>
                   </select>
                 </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">API 地址</label>
-                  <input x-model="providerForm.base_url" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="https://api.siliconflow.cn/v1">
+
+                <!-- Type-specific hints -->
+                <div x-show="providerForm.type === 'openai_compatible'" class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+                  <p class="font-medium mb-1">OpenAI 兼容引擎</p>
+                  <p>支持 SiliconFlow、OpenAI 等所有兼容 <code>/v1/audio/speech</code> 接口的平台。</p>
+                  <p class="mt-1">API Key 从对应平台获取，如 <a href="https://cloud.siliconflow.cn/account/ak" target="_blank" class="underline">SiliconFlow</a>、<a href="https://platform.openai.com/api-keys" target="_blank" class="underline">OpenAI</a></p>
                 </div>
-                <div>
+                <div x-show="providerForm.type === 'mimo'" class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+                  <p class="font-medium mb-1">小米 MiMo TTS（需 API Key）</p>
+                  <p>MiMo 使用 <code>/v1/chat/completions</code> 端点（非 <code>/audio/speech</code>），支持声音设计、声音克隆。</p>
+                  <p class="mt-1">API Key 从 <a href="https://platform.xiaomimimo.com/account/ak" target="_blank" class="underline">MiMo 开放平台</a> 获取，地址固定为 <code>https://api.xiaomimimo.com/v1</code></p>
+                </div>
+                <div x-show="providerForm.type === 'doubao'" class="bg-purple-50 border border-purple-200 rounded-lg p-3 text-xs text-purple-700">
+                  <p class="font-medium mb-1">豆包 TTS（使用 Cookie 认证，无需 API Key）</p>
+                  <p>通过 WebSocket 连接豆包服务器，使用浏览器登录后的 Cookie 认证。</p>
+                  <p class="mt-1">获取方式：浏览器登录 <a href="https://www.doubao.com" target="_blank" class="underline">doubao.com</a> → F12 → Application → Cookies → 复制整行 Cookie 值</p>
+                </div>
+                <div x-show="providerForm.type === 'minimax'" class="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-700">
+                  <p class="font-medium mb-1">MiniMax T2A（需 API Key + Group ID）</p>
+                  <p>MiniMax T2A V2 使用独立 API，需填写 Group ID。</p>
+                  <p class="mt-1">API Key 和 Group ID 从 <a href="https://platform.minimaxi.com/Console/Akey" target="_blank" class="underline">MiniMax 开放平台</a> 获取</p>
+                </div>
+
+                <!-- API Key / Cookie field -->
+                <div x-show="providerForm.type !== 'doubao'">
                   <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
                   <input x-model="providerForm.api_key" type="password" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="sk-...">
                 </div>
+                <div x-show="providerForm.type === 'doubao'">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Cookie</label>
+                  <textarea x-model="providerForm.cookie" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm font-mono"
+                            placeholder="在浏览器中登录 doubao.com 后，F12 → Application → Cookies 复制全部 Cookie 值"></textarea>
+                </div>
+
+                <!-- Base URL (hidden for MiMo, auto-filled) -->
+                <div x-show="providerForm.type !== 'mimo'">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <span x-text="providerForm.type === 'doubao' ? 'WebSocket 地址（自动填充）' : 'API 地址'"></span>
+                  </label>
+                  <input x-model="providerForm.base_url" class="w-full border rounded-lg px-3 py-2 text-sm"
+                         :placeholder="providerForm.type === 'doubao' ? '自动填充为豆包服务器地址' : 'https://api.siliconflow.cn/v1'"
+                         :disabled="providerForm.type === 'doubao'">
+                </div>
 
                 <!-- Fetch Models -->
-                <div>
+                <div x-show="providerForm.type !== 'doubao'">
                   <div class="flex items-center justify-between mb-1">
                     <label class="block text-sm font-medium text-gray-700">默认模型</label>
                     <button @click="fetchModels()" :disabled="fetchingModels"
                             class="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 flex items-center gap-1">
                       <svg x-show="fetchingModels" class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                      <span x-text="fetchingModels ? '获取中...' : '从 API 获取模型'"></span>
+                      <span x-text="fetchingModels ? '获取中...' : '获取模型列表'"></span>
                     </button>
                   </div>
                   <input x-model="providerForm.default_model" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="点击上方按钮获取模型列表">
-                  <!-- Model list -->
                   <div x-show="availableModels.length > 0" class="mt-2 border rounded-lg max-h-48 overflow-y-auto">
                     <template x-for="m in availableModels" :key="m.id">
                       <div @click="providerForm.default_model = m.id"
@@ -214,19 +249,22 @@
                     </template>
                   </div>
                 </div>
+                <div x-show="providerForm.type === 'doubao'">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">默认模型</label>
+                  <input x-model="providerForm.default_model" class="w-full border rounded-lg px-3 py-2 text-sm" value="doubao-tts" placeholder="doubao-tts">
+                </div>
 
                 <!-- Fetch Voices -->
-                <div>
+                <div x-show="providerForm.type !== 'doubao'">
                   <div class="flex items-center justify-between mb-1">
                     <label class="block text-sm font-medium text-gray-700">默认音色</label>
                     <button @click="fetchVoices()" :disabled="fetchingVoices"
                             class="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 flex items-center gap-1">
                       <svg x-show="fetchingVoices" class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                      <span x-text="fetchingVoices ? '获取中...' : '从 API 获取音色'"></span>
+                      <span x-text="fetchingVoices ? '获取中...' : '获取音色列表'"></span>
                     </button>
                   </div>
                   <input x-model="providerForm.default_voice" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="点击上方按钮获取音色列表">
-                  <!-- Voice list -->
                   <div x-show="availableVoices.length > 0" class="mt-2 border rounded-lg max-h-48 overflow-y-auto">
                     <template x-for="v in availableVoices" :key="v.id || v.voice_id">
                       <div @click="providerForm.default_voice = (v.id || v.voice_id)"
