@@ -1,0 +1,2 @@
+[console_scripts]
+noveltts = noveltts.cli:main
