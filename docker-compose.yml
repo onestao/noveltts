@@ -1,0 +1,11 @@
+services:
+  novelts:
+    build: .
+    container_name: novelts
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      - NOVELTTS_CONFIG=/data/config.json
+    restart: unless-stopped

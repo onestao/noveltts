@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NovelTTS - 小说朗读引擎</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="/css/app.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          screens: {
+            'xs': '480px',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .slide-enter { transform: translateX(-100%); }
+    .slide-enter-active { transform: translateX(0); transition: transform 0.3s ease; }
+    .fade-in { animation: fadeIn 0.2s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen" x-data="app()" x-cloak>
+
+  <!-- Mobile top bar -->
+  <header class="lg:hidden bg-gray-900 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+    <button @click="sidebarOpen = !sidebarOpen" class="p-1 -ml-1">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+    <h1 class="text-lg font-bold">NovelTTS</h1>
+    <div class="w-6"></div>
+  </header>
+
+  <!-- Sidebar overlay (mobile) -->
+  <div x-show="sidebarOpen" x-transition:enter="transition-opacity duration-300" x-transition:leave="transition-opacity duration-200"
+       @click="sidebarOpen = false"
+       class="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"></div>
+
+  <div class="flex min-h-screen lg:min-h-screen">
+    <!-- Sidebar -->
+    <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+           class="fixed lg:sticky top-0 lg:top-0 left-0 w-64 bg-gray-900 text-white flex-shrink-0 z-50 h-screen transition-transform duration-300 lg:translate-x-0 overflow-y-auto">
+      <div class="p-6 hidden lg:block">
+        <h1 class="text-xl font-bold">NovelTTS</h1>
+        <p class="text-gray-400 text-sm mt-1">小说朗读引擎</p>
+      </div>
+      <nav class="mt-2 lg:mt-0 pb-4">
+        <a @click.prevent="page='dashboard'; sidebarOpen=false" :class="page==='dashboard' ? 'bg-gray-800 text-white' : 'text-gray-300'"
+           class="flex items-center px-6 py-3 hover:bg-gray-800 cursor-pointer transition">
+          <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+          <span>仪表盘</span>
+        </a>
+        <a @click.prevent="page='providers'; sidebarOpen=false" :class="page==='providers' ? 'bg-gray-800 text-white' : 'text-gray-300'"
+           class="flex items-center px-6 py-3 hover:bg-gray-800 cursor-pointer transition">
+          <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          <span>引擎管理</span>
+        </a>
+        <a @click.prevent="page='voices'; sidebarOpen=false" :class="page==='voices' ? 'bg-gray-800 text-white' : 'text-gray-300'"
+           class="flex items-center px-6 py-3 hover:bg-gray-800 cursor-pointer transition">
+          <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+          <span>音色管理</span>
+        </a>
+        <a @click.prevent="page='settings'; sidebarOpen=false" :class="page==='settings' ? 'bg-gray-800 text-white' : 'text-gray-300'"
+           class="flex items-center px-6 py-3 hover:bg-gray-800 cursor-pointer transition">
+          <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span>系统设置</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto min-w-0">
+
+      <!-- ===== Dashboard ===== -->
+      <div x-show="page==='dashboard'">
+        <h2 class="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">仪表盘</h2>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+            <div class="text-gray-500 text-sm">已配置引擎</div>
+            <div class="text-2xl sm:text-3xl font-bold mt-2" x-text="config.providers?.length || 0"></div>
+          </div>
+          <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+            <div class="text-gray-500 text-sm">默认引擎</div>
+            <div class="text-lg sm:text-xl font-bold mt-2 truncate" x-text="config.defaults?.provider || '未设置'"></div>
+          </div>
+          <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+            <div class="text-gray-500 text-sm">默认语速</div>
+            <div class="text-2xl sm:text-3xl font-bold mt-2" x-text="config.defaults?.speed || 1.0"></div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
+          <h3 class="text-base sm:text-lg font-semibold mb-3">Legado 连接</h3>
+          <p class="text-gray-600 text-sm mb-3">在 Legado（阅读）App 中添加此 URL 作为朗读引擎：</p>
+          <div class="bg-gray-50 rounded p-3 font-mono text-xs sm:text-sm break-all border" id="legado-url">
+            <span x-text="legadoUrl"></span>
+          </div>
+          <div x-show="config.server?.auth_token" class="mt-3 bg-amber-50 border border-amber-200 rounded p-3 text-sm">
+            <p class="font-medium text-amber-800">已启用认证。在 Legado 中还需配置 Header：</p>
+            <code class="block mt-1 text-xs text-amber-700" x-text="'Authorization: Bearer ' + (config.server?.auth_token || '')"></code>
+          </div>
+          <button @click="copyLegadoUrl()" class="mt-3 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
+            复制 URL
+          </button>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+          <h3 class="text-base sm:text-lg font-semibold mb-3">OpenAI 兼容 API</h3>
+          <div class="bg-gray-50 rounded p-3 font-mono text-xs sm:text-sm break-all border">
+            POST <span x-text="baseUrl + '/v1/audio/speech'"></span>
+          </div>
+          <pre class="mt-3 bg-gray-900 text-green-400 rounded p-3 text-xs sm:text-sm overflow-x-auto">curl -X POST <span x-text="baseUrl + '/v1/audio/speech'"></span> \
+  -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","input":"你好世界","voice":"alloy","speed":1.0}' \
+  --output speech.mp3</pre>
+        </div>
+      </div>
+
+      <!-- ===== Providers ===== -->
+      <div x-show="page==='providers'">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 gap-3">
+          <h2 class="text-xl sm:text-2xl font-bold">引擎管理</h2>
+          <button @click="showAddProvider=true; resetProviderForm()"
+                  class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            添加引擎
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <template x-for="p in config.providers || []" :key="p.name">
+            <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+              <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                <div class="min-w-0">
+                  <h3 class="text-lg font-semibold" x-text="p.name"></h3>
+                  <p class="text-gray-500 text-sm mt-1">
+                    类型：<span class="font-mono" x-text="p.type === 'openai_compatible' ? 'OpenAI 兼容' : p.type === 'mimo' ? '小米 MiMo' : p.type === 'minimax' ? 'MiniMax' : p.type"></span>
+                  </p>
+                  <p class="text-gray-500 text-sm">地址：<span class="font-mono break-all" x-text="p.base_url"></span></p>
+                  <p class="text-gray-500 text-sm">模型：<span class="font-mono" x-text="p.default_model || '未设置'"></span></p>
+                  <p class="text-gray-500 text-sm">音色：<span class="font-mono" x-text="p.default_voice || '未设置'"></span></p>
+                </div>
+                <div class="flex gap-2 flex-shrink-0">
+                  <button @click="editProvider(p)" class="px-3 py-1 text-sm border rounded hover:bg-gray-50">编辑</button>
+                  <button @click="deleteProvider(p.name)" class="px-3 py-1 text-sm border border-red-300 text-red-600 rounded hover:bg-red-50">删除</button>
+                </div>
+              </div>
+            </div>
+          </template>
+          <div x-show="!config.providers || config.providers.length === 0"
+               class="bg-white rounded-lg shadow p-8 text-center text-gray-400">
+            暂未配置任何引擎，点击「添加引擎」开始
+          </div>
+        </div>
+
+        <!-- Add/Edit Provider Modal -->
+        <div x-show="showAddProvider" x-transition class="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div class="bg-white rounded-t-xl sm:rounded-xl shadow-xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
+            <div class="p-4 sm:p-6">
+              <h3 class="text-lg font-semibold mb-4" x-text="providerForm._editing ? '编辑引擎' : '添加引擎'"></h3>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">引擎名称</label>
+                  <input x-model="providerForm.name" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="例如：siliconflow"
+                         :disabled="providerForm._editing">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">类型</label>
+                  <select x-model="providerForm.type" class="w-full border rounded-lg px-3 py-2 text-sm">
+                    <option value="openai_compatible">OpenAI 兼容 (SiliconFlow / OpenAI)</option>
+                    <option value="mimo">小米 MiMo TTS</option>
+                    <option value="minimax">MiniMax T2A</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">API 地址</label>
+                  <input x-model="providerForm.base_url" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="https://api.siliconflow.cn/v1">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                  <input x-model="providerForm.api_key" type="password" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="sk-...">
+                </div>
+
+                <!-- Fetch Models -->
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="block text-sm font-medium text-gray-700">默认模型</label>
+                    <button @click="fetchModels()" :disabled="fetchingModels"
+                            class="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 flex items-center gap-1">
+                      <svg x-show="fetchingModels" class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      <span x-text="fetchingModels ? '获取中...' : '从 API 获取模型'"></span>
+                    </button>
+                  </div>
+                  <input x-model="providerForm.default_model" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="点击上方按钮获取模型列表">
+                  <!-- Model list -->
+                  <div x-show="availableModels.length > 0" class="mt-2 border rounded-lg max-h-48 overflow-y-auto">
+                    <template x-for="m in availableModels" :key="m.id">
+                      <div @click="providerForm.default_model = m.id"
+                           class="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 flex items-center justify-between"
+                           :class="providerForm.default_model === m.id ? 'bg-blue-100 text-blue-800' : ''">
+                        <span class="font-mono truncate" x-text="m.id"></span>
+                        <svg x-show="providerForm.default_model === m.id" class="w-4 h-4 text-blue-600 flex-shrink-0 ml-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Fetch Voices -->
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="block text-sm font-medium text-gray-700">默认音色</label>
+                    <button @click="fetchVoices()" :disabled="fetchingVoices"
+                            class="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 flex items-center gap-1">
+                      <svg x-show="fetchingVoices" class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      <span x-text="fetchingVoices ? '获取中...' : '从 API 获取音色'"></span>
+                    </button>
+                  </div>
+                  <input x-model="providerForm.default_voice" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="点击上方按钮获取音色列表">
+                  <!-- Voice list -->
+                  <div x-show="availableVoices.length > 0" class="mt-2 border rounded-lg max-h-48 overflow-y-auto">
+                    <template x-for="v in availableVoices" :key="v.id || v.voice_id">
+                      <div @click="providerForm.default_voice = (v.id || v.voice_id)"
+                           class="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 flex items-center justify-between gap-2"
+                           :class="providerForm.default_voice === (v.id || v.voice_id) ? 'bg-blue-100 text-blue-800' : ''">
+                        <div class="min-w-0">
+                          <span class="font-mono truncate block" x-text="v.id || v.voice_id"></span>
+                          <span class="text-xs text-gray-400" x-text="v.name || ''"></span>
+                        </div>
+                        <svg x-show="providerForm.default_voice === (v.id || v.voice_id)" class="w-4 h-4 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 mt-6 pt-4 border-t">
+                <button @click="showAddProvider=false" class="px-4 py-2 border rounded-lg hover:bg-gray-50 text-sm">取消</button>
+                <button @click="saveProvider()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Voices ===== -->
+      <div x-show="page==='voices'">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 gap-3">
+          <h2 class="text-xl sm:text-2xl font-bold">音色管理</h2>
+          <button @click="loadVoices()" class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            刷新音色
+          </button>
+        </div>
+
+        <!-- Preview controls -->
+        <div class="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
+          <div class="flex flex-col sm:flex-row gap-3">
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-700 mb-1">试听文本</label>
+              <input x-model="previewText" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="输入试听文本...">
+            </div>
+          </div>
+          <p class="text-gray-400 text-xs mt-2">点击音色卡片上的播放按钮试听</p>
+        </div>
+
+        <div x-show="voices.length === 0" class="bg-white rounded-lg shadow p-8 text-center text-gray-400">
+          暂无音色数据，请先在「引擎管理」中添加引擎
+        </div>
+
+        <!-- Voice grid grouped by provider -->
+        <template x-for="providerName in [...new Set(voices.map(v => v.provider))]" :key="providerName">
+          <div class="mb-6">
+            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-1" x-text="providerName"></h3>
+            <div class="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              <template x-for="v in voices.filter(x => x.provider === providerName)" :key="v.id + v.provider">
+                <div class="bg-white rounded-lg shadow p-3 sm:p-4 hover:shadow-md transition cursor-pointer"
+                     :class="isVoiceSelected(v.provider, v.id) ? 'ring-2 ring-blue-500' : ''"
+                     @click="toggleVoiceSelect(v.provider, v.id)">
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2">
+                        <input type="checkbox" :checked="isVoiceSelected(v.provider, v.id)" @click.stop class="rounded border-gray-300 text-blue-600 flex-shrink-0">
+                        <h4 class="font-semibold text-sm truncate" x-text="v.name || v.id"></h4>
+                      </div>
+                      <p class="text-gray-400 text-xs font-mono truncate mt-1 ml-6" x-text="v.id"></p>
+                    </div>
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                      <span class="text-xs px-1.5 py-0.5 rounded"
+                            :class="v.gender==='male' ? 'bg-blue-100 text-blue-700' : v.gender==='female' ? 'bg-pink-100 text-pink-700' : 'bg-gray-100 text-gray-600'"
+                            x-text="v.gender==='male' ? '男' : v.gender==='female' ? '女' : ''"></span>
+                      <button @click.stop="previewingVoice === v.id ? stopPreview() : previewVoice(v.provider, v.id, '')"
+                              class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition"
+                              :class="previewingVoice === v.id ? 'text-red-500' : 'text-blue-600'">
+                        <svg x-show="previewingVoice !== v.id" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        <svg x-show="previewingVoice === v.id" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- ===== Settings ===== -->
+      <div x-show="page==='settings'">
+        <h2 class="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">系统设置</h2>
+
+        <div class="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
+          <h3 class="text-base sm:text-lg font-semibold mb-4">默认参数</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">默认引擎</label>
+              <select x-model="defaultsForm.provider" class="w-full border rounded-lg px-3 py-2 text-sm">
+                <option value="">未设置</option>
+                <template x-for="p in config.providers || []" :key="p.name">
+                  <option :value="p.name" x-text="p.name"></option>
+                </template>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">默认语速</label>
+              <div class="flex items-center gap-3">
+                <input x-model.number="defaultsForm.speed" type="range" min="0.25" max="4.0" step="0.05"
+                       class="flex-1">
+                <span class="text-sm font-mono w-12 text-right" x-text="defaultsForm.speed.toFixed(2)"></span>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">输出格式</label>
+              <select x-model="defaultsForm.format" class="w-full border rounded-lg px-3 py-2 text-sm">
+                <option value="mp3">MP3</option>
+                <option value="wav">WAV</option>
+                <option value="flac">FLAC</option>
+              </select>
+            </div>
+          </div>
+          <button @click="saveDefaults()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            保存默认设置
+          </button>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
+          <h3 class="text-base sm:text-lg font-semibold mb-4">访问认证</h3>
+          <p class="text-gray-500 text-sm mb-3">设置 Token 后，Legado 和 OpenAI API 请求必须携带此 Token 才能访问。留空则不启用认证。</p>
+          <div class="flex flex-col sm:flex-row gap-3">
+            <input x-model="authToken" type="password" class="flex-1 border rounded-lg px-3 py-2 text-sm" placeholder="留空表示不启用认证">
+            <button @click="saveAuthToken()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">保存</button>
+          </div>
+          <div x-show="config.server?.auth_token" class="mt-3 text-sm text-green-700">认证已启用</div>
+          <div x-show="!config.server?.auth_token" class="mt-3 text-sm text-gray-400">认证未启用</div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+          <h3 class="text-base sm:text-lg font-semibold mb-4">服务器信息</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div class="flex justify-between sm:block">
+              <span class="text-gray-500">监听端口</span>
+              <span class="font-mono sm:mt-1 sm:block" x-text="config.server?.port || 8080"></span>
+            </div>
+            <div class="flex justify-between sm:block">
+              <span class="text-gray-500">日志级别</span>
+              <span class="font-mono sm:mt-1 sm:block" x-text="config.server?.log_level || 'info'"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toast -->
+      <div x-show="toast.show" x-transition:enter="transition ease-out duration-300"
+           x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+           x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+           class="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-80 px-4 py-3 rounded-lg shadow-lg text-white text-sm z-50"
+           :class="toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'">
+        <span x-text="toast.message"></span>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
