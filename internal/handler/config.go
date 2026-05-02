@@ -93,6 +93,8 @@ func (h *ConfigHandler) AddProvider(c *gin.Context) {
 			pc.Type = "mimo"
 		} else if strings.Contains(u, "minimax") || strings.Contains(u, "minimaxi") {
 			pc.Type = "minimax"
+		} else if strings.Contains(u, "doubao") || strings.Contains(u, "amantha") {
+			pc.Type = "doubao"
 		} else {
 			pc.Type = "openai_compatible"
 		}

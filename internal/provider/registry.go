@@ -49,6 +49,8 @@ func (r *Registry) createProvider(cfg model.ProviderConfig) (Provider, error) {
 		return NewMiniMaxProvider(cfg), nil
 	case "mimo":
 		return NewMiMoProvider(cfg), nil
+	case "doubao":
+		return NewDoubaoProvider(cfg), nil
 	default:
 		return nil, fmt.Errorf("unknown provider type: %s", cfg.Type)
 	}

@@ -29,7 +29,7 @@ func NewMiMoProvider(cfg model.ProviderConfig) *MiMoProvider {
 		name:    cfg.Name,
 		baseURL: baseURL,
 		apiKey:  cfg.APIKey,
-		client:  &http.Client{},
+		client:  &http.Client{Timeout: 0},
 	}
 }
 
@@ -37,10 +37,12 @@ func (p *MiMoProvider) Name() string { return p.name }
 func (p *MiMoProvider) Type() string { return "mimo" }
 
 type mimoChatRequest struct {
-	Model    string        `json:"model"`
-	Messages []mimoMessage `json:"messages"`
-	Audio    *mimoAudio    `json:"audio,omitempty"`
-	Stream   bool          `json:"stream"`
+	Model      string        `json:"model"`
+	Messages   []mimoMessage `json:"messages"`
+	Audio      *mimoAudio    `json:"audio,omitempty"`
+	Stream     bool          `json:"stream"`
+	ExtraBody  *mimoExtra    `json:"extra_body,omitempty"`
+	MaxTokens  int           `json:"max_completion_tokens,omitempty"`
 }
 
 type mimoMessage struct {
@@ -53,11 +55,18 @@ type mimoAudio struct {
 	Voice  string `json:"voice,omitempty"`
 }
 
+type mimoExtra struct {
+	Voice string `json:"voice,omitempty"`
+	Style string `json:"style,omitempty"`
+	Speed int    `json:"speed,omitempty"`
+}
+
 type mimoChatResponse struct {
 	Choices []struct {
 		Message struct {
 			Audio struct {
-				Data string `json:"data"`
+				Data       string `json:"data"`
+				Transcript string `json:"transcript"`
 			} `json:"audio"`
 		} `json:"message"`
 	} `json:"choices"`
@@ -79,27 +88,28 @@ func (p *MiMoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) (i
 
 	format := req.ResponseFormat
 	if format == "" {
-		format = "mp3"
+		format = "wav"
 	}
 
-	messages := []mimoMessage{
-		{Role: "assistant", Content: req.Text},
-	}
+	messages := p.buildMessages(modelName, req.Text, voice)
 
-	if strings.Contains(modelName, "voicedesign") {
-		messages = append([]mimoMessage{
-			{Role: "user", Content: "请用指定的声音朗读以下文本"},
-		}, messages...)
+	audioCfg := &mimoAudio{
+		Format: format,
+		Voice:  voice,
 	}
 
 	body := mimoChatRequest{
-		Model:    modelName,
-		Messages: messages,
-		Audio: &mimoAudio{
-			Format: format,
-			Voice:  voice,
-		},
-		Stream: false,
+		Model:     modelName,
+		Messages:  messages,
+		Audio:     audioCfg,
+		Stream:    false,
+		MaxTokens: 8192,
+	}
+
+	if req.Speed > 0 && req.Speed != 1.0 {
+		body.ExtraBody = &mimoExtra{
+			Speed: int(req.Speed * 5),
+		}
 	}
 
 	jsonData, err := json.Marshal(body)
@@ -154,10 +164,10 @@ func (p *MiMoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) (i
 		return nil, "", fmt.Errorf("decode audio base64: %w", err)
 	}
 
-	contentType := "audio/mpeg"
+	contentType := "audio/wav"
 	switch format {
-	case "wav":
-		contentType = "audio/wav"
+	case "mp3":
+		contentType = "audio/mpeg"
 	case "pcm", "pcm16":
 		contentType = "audio/pcm"
 	}
@@ -165,16 +175,51 @@ func (p *MiMoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) (i
 	return io.NopCloser(bytes.NewReader(audioBytes)), contentType, nil
 }
 
+func (p *MiMoProvider) buildMessages(modelName, text, voice string) []mimoMessage {
+	if strings.Contains(modelName, "voiceclone") {
+		return []mimoMessage{
+			{Role: "assistant", Content: text},
+		}
+	}
+
+	if strings.Contains(modelName, "voicedesign") {
+		return []mimoMessage{
+			{Role: "user", Content: voice},
+			{Role: "assistant", Content: text},
+		}
+	}
+
+	return []mimoMessage{
+		{Role: "user", Content: "请朗读以下文本"},
+		{Role: "assistant", Content: text},
+	}
+}
+
 func (p *MiMoProvider) ListModels(ctx context.Context) ([]model.ModelInfo, error) {
 	return []model.ModelInfo{
-		{ID: "mimo-v2.5-tts", Name: "MiMo V2.5 TTS", Provider: p.name},
-		{ID: "mimo-v2.5-tts-voicedesign", Name: "MiMo V2.5 TTS VoiceDesign", Provider: p.name},
-		{ID: "mimo-v2.5-tts-voiceclone", Name: "MiMo V2.5 TTS VoiceClone", Provider: p.name},
+		{ID: "mimo-v2.5-tts", Name: "MiMo V2.5 TTS (标准)", Provider: p.name},
+		{ID: "mimo-v2.5-tts-voicedesign", Name: "MiMo V2.5 TTS (声音设计)", Provider: p.name},
+		{ID: "mimo-v2.5-tts-voiceclone", Name: "MiMo V2.5 TTS (声音克隆)", Provider: p.name},
 		{ID: "mimo-v2-tts", Name: "MiMo V2 TTS", Provider: p.name},
 	}, nil
 }
 
 func (p *MiMoProvider) ListVoices(ctx context.Context, modelID string) ([]model.VoiceInfo, error) {
+	if strings.Contains(modelID, "voicedesign") {
+		return []model.VoiceInfo{
+			{ID: "温柔的女声", Name: "温柔女声"},
+			{ID: "成熟的男声", Name: "成熟男声"},
+			{ID: "活泼的少女", Name: "活泼少女"},
+			{ID: "沉稳的大叔", Name: "沉稳大叔"},
+			{ID: "甜美的女声", Name: "甜美女声"},
+			{ID: "磁性的男声", Name: "磁性男声"},
+		}, nil
+	}
+	if strings.Contains(modelID, "voiceclone") {
+		return []model.VoiceInfo{
+			{ID: "[BASE64_AUDIO]", Name: "上传参考音频 (Base64)"},
+		}, nil
+	}
 	if strings.Contains(modelID, "v2.5") {
 		return []model.VoiceInfo{
 			{ID: "mimo_default", Name: "MiMo 默认"},

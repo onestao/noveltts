@@ -143,7 +143,7 @@
                 <div class="min-w-0">
                   <h3 class="text-lg font-semibold" x-text="p.name"></h3>
                   <p class="text-gray-500 text-sm mt-1">
-                    类型：<span class="font-mono" x-text="p.type === 'openai_compatible' ? 'OpenAI 兼容' : p.type === 'mimo' ? '小米 MiMo' : p.type === 'minimax' ? 'MiniMax' : p.type"></span>
+                    类型：<span class="font-mono" x-text="p.type === 'openai_compatible' ? 'OpenAI 兼容' : p.type === 'mimo' ? '小米 MiMo' : p.type === 'doubao' ? '豆包 TTS' : p.type === 'minimax' ? 'MiniMax' : p.type"></span>
                   </p>
                   <p class="text-gray-500 text-sm">地址：<span class="font-mono break-all" x-text="p.base_url"></span></p>
                   <p class="text-gray-500 text-sm">模型：<span class="font-mono" x-text="p.default_model || '未设置'"></span></p>
@@ -178,6 +178,7 @@
                   <select x-model="providerForm.type" class="w-full border rounded-lg px-3 py-2 text-sm">
                     <option value="openai_compatible">OpenAI 兼容 (SiliconFlow / OpenAI)</option>
                     <option value="mimo">小米 MiMo TTS</option>
+                    <option value="doubao">豆包 TTS (WebSocket)</option>
                     <option value="minimax">MiniMax T2A</option>
                   </select>
                 </div>
