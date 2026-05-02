@@ -9,6 +9,9 @@ type TTSRequest struct {
 	ResponseFormat string  `json:"response_format"`
 	Model          string  `json:"model"`
 	Provider       string  `json:"provider"`
+	Style          string  `json:"style,omitempty"`
+	Dialect        string  `json:"dialect,omitempty"`
+	UserMessage    string  `json:"user_message,omitempty"`
 }
 
 type ModelInfo struct {

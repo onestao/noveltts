@@ -232,6 +232,30 @@ func (h *ConfigHandler) PreviewVoice(c *gin.Context) {
 		Model:          req.Model,
 	}
 
+	if req.Provider != "" {
+		for _, pc := range cfg.Providers {
+			if pc.Name == req.Provider && pc.Extra != nil {
+				var extra struct {
+					Style      string `json:"style"`
+					Dialect    string `json:"dialect"`
+					UserMessage string `json:"user_message"`
+				}
+				if json.Unmarshal(pc.Extra, &extra) == nil {
+					if extra.Style != "" {
+						ttsReq.Style = extra.Style
+					}
+					if extra.Dialect != "" {
+						ttsReq.Dialect = extra.Dialect
+					}
+					if extra.UserMessage != "" {
+						ttsReq.UserMessage = extra.UserMessage
+					}
+				}
+				break
+			}
+		}
+	}
+
 	log.Printf("[preview] provider=%s model=%s voice=%s", req.Provider, req.Model, req.Voice)
 
 	body, contentType, err := prov.Synthesize(c.Request.Context(), ttsReq)

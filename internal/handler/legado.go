@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -95,6 +96,22 @@ func (h *LegadoHandler) TTS(c *gin.Context) {
 		Speed:          speed,
 		ResponseFormat: "mp3",
 		Model:          modelName,
+	}
+
+	for _, pc := range cfg.Providers {
+		if pc.Name == cfg.Defaults.Provider && pc.Extra != nil {
+			var extra struct {
+				Style       string `json:"style"`
+				Dialect     string `json:"dialect"`
+				UserMessage string `json:"user_message"`
+			}
+			if json.Unmarshal(pc.Extra, &extra) == nil {
+				ttsReq.Style = extra.Style
+				ttsReq.Dialect = extra.Dialect
+				ttsReq.UserMessage = extra.UserMessage
+			}
+			break
+		}
 	}
 
 	body, contentType, err := prov.Synthesize(c.Request.Context(), ttsReq)

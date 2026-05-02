@@ -37,12 +37,13 @@ func (p *MiMoProvider) Name() string { return p.name }
 func (p *MiMoProvider) Type() string { return "mimo" }
 
 type mimoChatRequest struct {
-	Model      string        `json:"model"`
-	Messages   []mimoMessage `json:"messages"`
-	Audio      *mimoAudio    `json:"audio,omitempty"`
-	Stream     bool          `json:"stream"`
-	ExtraBody  *mimoExtra    `json:"extra_body,omitempty"`
-	MaxTokens  int           `json:"max_completion_tokens,omitempty"`
+	Model       string           `json:"model"`
+	Messages    []mimoMessage    `json:"messages"`
+	Audio       *mimoAudio       `json:"audio,omitempty"`
+	Stream      bool             `json:"stream"`
+	ExtraBody   *mimoExtraBody   `json:"extra_body,omitempty"`
+	MaxTokens   int              `json:"max_completion_tokens,omitempty"`
+	Modalities  []string         `json:"modalities,omitempty"`
 }
 
 type mimoMessage struct {
@@ -55,7 +56,7 @@ type mimoAudio struct {
 	Voice  string `json:"voice,omitempty"`
 }
 
-type mimoExtra struct {
+type mimoExtraBody struct {
 	Voice string `json:"voice,omitempty"`
 	Style string `json:"style,omitempty"`
 	Speed int    `json:"speed,omitempty"`
@@ -91,24 +92,34 @@ func (p *MiMoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) (i
 		format = "wav"
 	}
 
-	messages := p.buildMessages(modelName, req.Text, voice)
+	messages := p.buildMessages(modelName, req.Text, req.UserMessage, req.Style, req.Dialect)
 
 	audioCfg := &mimoAudio{
 		Format: format,
-		Voice:  voice,
+	}
+
+	if !strings.Contains(modelName, "voiceclone") && !strings.Contains(modelName, "voicedesign") {
+		audioCfg.Voice = voice
 	}
 
 	body := mimoChatRequest{
-		Model:     modelName,
-		Messages:  messages,
-		Audio:     audioCfg,
-		Stream:    false,
-		MaxTokens: 8192,
+		Model:      modelName,
+		Messages:   messages,
+		Audio:      audioCfg,
+		Stream:     false,
+		MaxTokens:  8192,
 	}
 
-	if req.Speed > 0 && req.Speed != 1.0 {
-		body.ExtraBody = &mimoExtra{
-			Speed: int(req.Speed * 5),
+	if req.Style != "" || (req.Speed > 0 && req.Speed != 1.0) {
+		body.ExtraBody = &mimoExtraBody{}
+		if req.Style != "" {
+			body.ExtraBody.Style = req.Style
+		}
+		if req.Speed > 0 && req.Speed != 1.0 {
+			body.ExtraBody.Speed = int(req.Speed * 5)
+		}
+		if !strings.Contains(modelName, "voiceclone") && !strings.Contains(modelName, "voicedesign") {
+			body.ExtraBody.Voice = voice
 		}
 	}
 
@@ -175,7 +186,7 @@ func (p *MiMoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) (i
 	return io.NopCloser(bytes.NewReader(audioBytes)), contentType, nil
 }
 
-func (p *MiMoProvider) buildMessages(modelName, text, voice string) []mimoMessage {
+func (p *MiMoProvider) buildMessages(modelName, text, userMessage, style, dialect string) []mimoMessage {
 	if strings.Contains(modelName, "voiceclone") {
 		return []mimoMessage{
 			{Role: "assistant", Content: text},
@@ -183,14 +194,30 @@ func (p *MiMoProvider) buildMessages(modelName, text, voice string) []mimoMessag
 	}
 
 	if strings.Contains(modelName, "voicedesign") {
+		desc := userMessage
+		if desc == "" {
+			desc = "温柔的女声"
+		}
 		return []mimoMessage{
-			{Role: "user", Content: voice},
+			{Role: "user", Content: desc},
 			{Role: "assistant", Content: text},
 		}
 	}
 
+	instruction := userMessage
+	if instruction == "" {
+		instruction = "请朗读以下文本"
+	}
+
+	if style != "" {
+		instruction = fmt.Sprintf("%s<|endofprompt|><style>%s</style>", instruction, style)
+	}
+	if dialect != "" {
+		instruction = fmt.Sprintf("%s<|endofprompt|><style>%s</style>", instruction, dialect)
+	}
+
 	return []mimoMessage{
-		{Role: "user", Content: "请朗读以下文本"},
+		{Role: "user", Content: instruction},
 		{Role: "assistant", Content: text},
 	}
 }

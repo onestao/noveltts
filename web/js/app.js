@@ -108,7 +108,7 @@ function app() {
     },
 
     resetProviderForm() {
-      this.providerForm = { name: '', type: 'openai_compatible', base_url: '', api_key: '', cookie: '', default_model: '', default_voice: '', _editing: false };
+      this.providerForm = { name: '', type: 'openai_compatible', base_url: '', api_key: '', cookie: '', default_model: '', default_voice: '', mimo_style: '', mimo_dialect: '', mimo_user_message: '', _editing: false };
       this.availableModels = [];
       this.availableVoices = [];
     },
@@ -134,6 +134,15 @@ function app() {
     },
 
     editProvider(p) {
+      let mimoStyle = '', mimoDialect = '', mimoUserMessage = '';
+      if (p.extra) {
+        try {
+          const e = typeof p.extra === 'string' ? JSON.parse(p.extra) : p.extra;
+          mimoStyle = e.style || '';
+          mimoDialect = e.dialect || '';
+          mimoUserMessage = e.user_message || '';
+        } catch(e) {}
+      }
       this.providerForm = {
         name: p.name,
         type: p.type,
@@ -141,6 +150,9 @@ function app() {
         api_key: '',
         default_model: p.default_model || '',
         default_voice: p.default_voice || '',
+        mimo_style: mimoStyle,
+        mimo_dialect: mimoDialect,
+        mimo_user_message: mimoUserMessage,
         _editing: true,
         _originalKey: p.api_key,
       };
@@ -225,6 +237,14 @@ function app() {
 
       if (this.providerForm.type === 'doubao' && this.providerForm.cookie) {
         payload.extra = { cookies: this.providerForm.cookie.split(/[;\n]/).map(c => c.trim()).filter(c => c) };
+      }
+
+      if (this.providerForm.type === 'mimo') {
+        const mimoExtra = {};
+        if (this.providerForm.mimo_style) mimoExtra.style = this.providerForm.mimo_style;
+        if (this.providerForm.mimo_dialect) mimoExtra.dialect = this.providerForm.mimo_dialect;
+        if (this.providerForm.mimo_user_message) mimoExtra.user_message = this.providerForm.mimo_user_message;
+        if (Object.keys(mimoExtra).length > 0) payload.extra = mimoExtra;
       }
 
       try {

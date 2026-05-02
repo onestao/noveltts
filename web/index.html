@@ -192,8 +192,14 @@
                 </div>
                 <div x-show="providerForm.type === 'mimo'" class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
                   <p class="font-medium mb-1">小米 MiMo TTS（需 API Key）</p>
-                  <p>MiMo 使用 <code>/v1/chat/completions</code> 端点（非 <code>/audio/speech</code>），支持声音设计、声音克隆。</p>
+                  <p>MiMo 使用 <code>/v1/chat/completions</code> 端点，支持标准 TTS、声音设计、声音克隆、风格控制、方言注入。</p>
                   <p class="mt-1">API Key 从 <a href="https://platform.xiaomimimo.com/account/ak" target="_blank" class="underline">MiMo 开放平台</a> 获取，地址固定为 <code>https://api.xiaomimimo.com/v1</code></p>
+                  <p class="mt-1">模型说明：</p>
+                  <ul class="list-disc list-inside mt-0.5">
+                    <li><code>mimo-v2.5-tts</code> — 标准 TTS，支持风格/方言</li>
+                    <li><code>mimo-v2.5-tts-voicedesign</code> — 声音设计（用文字描述声音）</li>
+                    <li><code>mimo-v2.5-tts-voiceclone</code> — 声音克隆（传入参考音频）</li>
+                  </ul>
                 </div>
                 <div x-show="providerForm.type === 'doubao'" class="bg-purple-50 border border-purple-200 rounded-lg p-3 text-xs text-purple-700">
                   <p class="font-medium mb-1">豆包 TTS（使用 Cookie 认证，无需 API Key）</p>
@@ -279,6 +285,46 @@
                     </template>
                   </div>
                 </div>
+
+                <!-- MiMo-specific options -->
+                <div x-show="providerForm.type === 'mimo'" class="border-t pt-4 mt-4">
+                  <h4 class="text-sm font-semibold text-gray-700 mb-3">MiMo 高级选项（可选）</h4>
+                  <div class="space-y-3">
+                    <div>
+                      <label class="block text-xs font-medium text-gray-600 mb-1">风格</label>
+                      <select x-model="providerForm.mimo_style" class="w-full border rounded-lg px-3 py-2 text-sm">
+                        <option value="">默认</option>
+                        <option value="开心">开心</option>
+                        <option value="悲伤">悲伤</option>
+                        <option value="生气">生气</option>
+                        <option value="害怕">害怕</option>
+                        <option value="厌恶">厌恶</option>
+                        <option value="惊讶">惊讶</option>
+                        <option value="撒娇">撒娇</option>
+                        <option value="温柔">温柔</option>
+                        <option value="严肃">严肃</option>
+                        <option value="深情">深情</option>
+                        <option value="低语">低语</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-medium text-gray-600 mb-1">方言</label>
+                      <select x-model="providerForm.mimo_dialect" class="w-full border rounded-lg px-3 py-2 text-sm">
+                        <option value="">标准普通话</option>
+                        <option value="东北话">东北话</option>
+                        <option value="四川话">四川话</option>
+                        <option value="河南话">河南话</option>
+                        <option value="粤语">粤语</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-medium text-gray-600 mb-1">自定义指令</label>
+                      <input x-model="providerForm.mimo_user_message" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="默认：请朗读以下文本">
+                      <p class="text-xs text-gray-400 mt-1">控制朗读风格，如"请用欢快的语气朗读"</p>
+                    </div>
+                  </div>
+                </div>
+
               </div>
 
               <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 mt-6 pt-4 border-t">
