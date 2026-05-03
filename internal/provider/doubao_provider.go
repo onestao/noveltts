@@ -40,9 +40,6 @@ func NewDoubaoProvider(cfg model.ProviderConfig) *DoubaoProvider {
 			wsURL = extra.WsURL
 		}
 	}
-	if wsURL == "" {
-		wsURL = "wss://amantha.doubao.com/latasr/api/ws/tts/v1"
-	}
 	return &DoubaoProvider{
 		name:    cfg.Name,
 		cookies: cookies,
@@ -53,21 +50,6 @@ func NewDoubaoProvider(cfg model.ProviderConfig) *DoubaoProvider {
 func (p *DoubaoProvider) Name() string { return p.name }
 func (p *DoubaoProvider) Type() string { return "doubao" }
 
-type doubaoTTSRequest struct {
-	AID       int    `json:"aid"`
-	Speaker   string `json:"speaker"`
-	SpeechRate int   `json:"speech_rate"`
-	Pitch     int    `json:"pitch"`
-	Language  string `json:"language"`
-	PkgType   string `json:"pkg_type"`
-	SysRegion string `json:"sys_region"`
-	UseOlympus int  `json:"use_olympus_account"`
-	CookieID  string `json:"cookieId,omitempty"`
-	DeviceID  string `json:"deviceId,omitempty"`
-	TeaUUID   string `json:"tea_uuid,omitempty"`
-	WebID     string `json:"web_id,omitempty"`
-}
-
 type doubaoWSMessage struct {
 	Event string          `json:"event"`
 	Data  json.RawMessage `json:"data,omitempty"`
@@ -76,6 +58,27 @@ type doubaoWSMessage struct {
 type doubaoAudioData struct {
 	Audio  string `json:"audio"`
 	Status int    `json:"status"`
+}
+
+func (p *DoubaoProvider) buildWSURL(speaker string, speed int) string {
+	if p.wsURL != "" {
+		return p.wsURL
+	}
+
+	deviceID := fmt.Sprintf("%d", time.Now().UnixNano()%10000000000000000)
+	webID := fmt.Sprintf("%d", time.Now().UnixNano()%10000000000000000)
+	tabID := fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		time.Now().UnixNano()%0xFFFFFFFF,
+		time.Now().UnixNano()%0xFFFF,
+		time.Now().UnixNano()%0xFFFF,
+		time.Now().UnixNano()%0xFFFF,
+		time.Now().UnixNano()%0xFFFFFFFFFFFF)
+
+	params := fmt.Sprintf(
+		"?speaker=%s&format=aac&speech_rate=%d&pitch=0&version_code=20800&language=zh&device_platform=web&aid=497858&real_aid=497858&pkg_type=release_version&device_id=%s&pc_version=3.17.0&web_id=%s&tea_uuid=%s&region=&sys_region=&samantha_web=1&use-olympus-account=1&web_tab_id=%s",
+		speaker, speed, deviceID, webID, webID, tabID)
+
+	return "wss://ws-samantha.doubao.com/samantha/audio/tts" + params
 }
 
 func (p *DoubaoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) (io.ReadCloser, string, error) {
@@ -88,16 +91,20 @@ func (p *DoubaoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) 
 
 	speaker := req.Voice
 	if speaker == "" {
-		speaker = "zh_female_wenroutaozi_uranus_bigtts"
+		speaker = "zh_female_taozi_conversation_v4_wvae_bigtts"
 	}
 
 	speed := int(req.Speed * 5)
-	if speed == 0 {
+	if speed < -5 {
+		speed = -5
+	}
+	if speed > 5 {
 		speed = 5
 	}
 
-	wsURL := p.wsURL
-	log.Printf("[doubao] ws_url=%s speaker=%s speed=%d text_len=%d", wsURL, speaker, speed, len(req.Text))
+	wsURL := p.buildWSURL(speaker, speed)
+	log.Printf("[doubao] ws_url=%s", truncate(wsURL, 200))
+	log.Printf("[doubao] speaker=%s speed=%d text_len=%d", speaker, speed, len(req.Text))
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
@@ -120,24 +127,6 @@ func (p *DoubaoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) 
 	}
 	defer conn.Close()
 	log.Printf("[doubao] websocket connected, resp_status=%d", resp.StatusCode)
-
-	ttsReq := doubaoTTSRequest{
-		AID:        497858,
-		Speaker:    speaker,
-		SpeechRate: speed,
-		Pitch:      5,
-		Language:   "zh",
-		PkgType:    "release_version",
-		SysRegion:  "CN",
-		UseOlympus: 1,
-	}
-
-	reqJSON, _ := json.Marshal(ttsReq)
-	log.Printf("[doubao] sending tts request: %s", string(reqJSON))
-	if err := conn.WriteMessage(websocket.TextMessage, reqJSON); err != nil {
-		log.Printf("[doubao] ERROR: send tts request: %v", err)
-		return nil, "", fmt.Errorf("send tts request: %w", err)
-	}
 
 	textBytes := []byte(req.Text)
 	log.Printf("[doubao] sending text: len=%d, first50=%s", len(req.Text), truncate(req.Text, 50))
@@ -172,7 +161,7 @@ func (p *DoubaoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) 
 
 			log.Printf("[doubao] event=%s", wsMsg.Event)
 			switch wsMsg.Event {
-			case "finish":
+			case "finish", "complete", "done":
 				done = true
 				log.Printf("[doubao] finished, audio_buf=%d bytes", audioBuf.Len())
 			case "error":
@@ -193,6 +182,8 @@ func (p *DoubaoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) 
 						log.Printf("[doubao] audio decode error: %v", err)
 					}
 				}
+			default:
+				log.Printf("[doubao] unknown event: %s data=%s", wsMsg.Event, truncate(string(msg), 200))
 			}
 		} else if msgType == websocket.BinaryMessage {
 			audioBuf.Write(msg)
@@ -201,11 +192,12 @@ func (p *DoubaoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) 
 	}
 
 	if audioBuf.Len() == 0 {
+		log.Printf("[doubao] WARNING: no audio data received")
 		return nil, "", fmt.Errorf("no audio data received from Doubao")
 	}
 
-	log.Printf("[doubao] synthesized %d bytes", audioBuf.Len())
-	return io.NopCloser(bytes.NewReader(audioBuf.Bytes())), "audio/mpeg", nil
+	log.Printf("[doubao] success: %d bytes audio", audioBuf.Len())
+	return io.NopCloser(bytes.NewReader(audioBuf.Bytes())), "audio/aac", nil
 }
 
 func decodeDoubaoAudio(data string) ([]byte, error) {
@@ -285,6 +277,7 @@ func (p *DoubaoProvider) ListModels(ctx context.Context) ([]model.ModelInfo, err
 
 func (p *DoubaoProvider) ListVoices(ctx context.Context, modelID string) ([]model.VoiceInfo, error) {
 	return []model.VoiceInfo{
+		{ID: "zh_female_taozi_conversation_v4_wvae_bigtts", Name: "温柔桃子 v4", Gender: "female"},
 		{ID: "zh_female_wenroutaozi_uranus_bigtts", Name: "温柔桃子", Gender: "female"},
 		{ID: "zh_male_nuanxinshizhe_mars_bigtts", Name: "磁性俊宇", Gender: "male"},
 		{ID: "zh_female_xiaohe_conversation_wvae_bigtts", Name: "阳光甜妹", Gender: "female"},
