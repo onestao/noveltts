@@ -20,6 +20,9 @@ function app() {
     previewAudio: null,
     selectedVoices: {},
 
+    // Legado page
+    legadoConfigs: [],
+
     get baseUrl() {
       return window.location.origin;
     },
@@ -35,6 +38,7 @@ function app() {
     async init() {
       await this.loadConfig();
       await this.loadVoices();
+      await this.loadLegadoConfigs();
     },
 
     async loadConfig() {
@@ -301,6 +305,47 @@ function app() {
       }).catch(() => {
         this.showToast('复制失败，请手动复制', 'error');
       });
+    },
+
+    async loadLegadoConfigs() {
+      try {
+        const resp = await fetch('/api/legado/tts-configs');
+        const data = await resp.json();
+        this.legadoConfigs = Array.isArray(data) ? data : [];
+      } catch (e) {
+        this.legadoConfigs = [];
+      }
+    },
+
+    importAllToLegado() {
+      const url = this.baseUrl + '/api/legado/tts-configs';
+      const legadoUrl = 'legado://import/httpTTS?src=' + encodeURIComponent(url);
+      window.location.href = legadoUrl;
+      setTimeout(() => {
+        this.showToast('如果阅读 App 未打开，请使用「查看导入指南」手动配置', 'error');
+      }, 2000);
+    },
+
+    importSingleToLegado(cfg) {
+      const url = this.baseUrl + '/api/legado/tts-config?provider=' + encodeURIComponent(cfg.name.split(' - ')[0]) + '&voice=' + encodeURIComponent(cfg.name.split(' - ')[1] || '');
+      const legadoUrl = 'legado://import/httpTTS?src=' + encodeURIComponent(url);
+      window.location.href = legadoUrl;
+      setTimeout(() => {
+        this.showToast('如果阅读 App 未打开，请手动复制配置', 'error');
+      }, 2000);
+    },
+
+    copyLegadoConfig(cfg) {
+      const configJson = JSON.stringify(cfg, null, 2);
+      navigator.clipboard.writeText(configJson).then(() => {
+        this.showToast('配置已复制到剪贴板');
+      }).catch(() => {
+        this.showToast('复制失败', 'error');
+      });
+    },
+
+    openLegadoGuide() {
+      window.open('/legado/guide', '_blank');
     },
 
     showToast(message, type = 'success') {

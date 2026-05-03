@@ -61,6 +61,7 @@ func main() {
 	modelsH := handler.NewModelsHandler(registry)
 	voicesH := handler.NewVoicesHandler(registry)
 	configH := handler.NewConfigHandler(registry)
+	legadoCfgH := handler.NewLegadoConfigHandler(registry)
 
 	r.POST("/v1/audio/speech", openaiH.Speech)
 	r.GET("/v1/models", modelsH.ListOpenAI)
@@ -81,9 +82,14 @@ func main() {
 		api.PUT("/config/defaults", configH.UpdateDefaults)
 		api.POST("/config/fetch-models", configH.FetchModels)
 		api.POST("/config/fetch-voices", configH.FetchVoices)
+
+		api.GET("/legado/tts-configs", legadoCfgH.ListConfigs)
+		api.GET("/legado/tts-config", legadoCfgH.GetSingleConfig)
 	}
 
 	handler.RegisterWebUI(r, webSub)
+
+	r.GET("/legado/guide", legadoCfgH.ImportGuide)
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	log.Printf("[main] NovelTTS starting on %s", addr)

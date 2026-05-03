@@ -68,6 +68,11 @@
           <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
           <span>音色管理</span>
         </a>
+        <a @click.prevent="page='legado'; sidebarOpen=false" :class="page==='legado' ? 'bg-gray-800 text-white' : 'text-gray-300'"
+           class="flex items-center px-6 py-3 hover:bg-gray-800 cursor-pointer transition">
+          <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+          <span>导入阅读</span>
+        </a>
         <a @click.prevent="page='settings'; sidebarOpen=false" :class="page==='settings' ? 'bg-gray-800 text-white' : 'text-gray-300'"
            class="flex items-center px-6 py-3 hover:bg-gray-800 cursor-pointer transition">
           <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -395,6 +400,56 @@
             </div>
           </div>
         </template>
+      </div>
+
+      <!-- ===== Legado Import ===== -->
+      <div x-show="page==='legado'">
+        <h2 class="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">导入到阅读 (Legado)</h2>
+
+        <div class="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
+          <h3 class="text-base sm:text-lg font-semibold mb-3">一键导入</h3>
+          <p class="text-gray-600 text-sm mb-4">手机已安装阅读 App 时，点击按钮自动跳转导入页面。导入后可在阅读 App 中直接使用。</p>
+          <div class="flex flex-wrap gap-3">
+            <button @click="importAllToLegado()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+              一键导入全部音色到阅读
+            </button>
+            <button @click="openLegadoGuide()" class="px-4 py-2 border rounded-lg hover:bg-gray-50 text-sm">查看导入指南</button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
+          <h3 class="text-base sm:text-lg font-semibold mb-3">Legado TTS URL 模板</h3>
+          <p class="text-gray-600 text-sm mb-3">在阅读 App 中手动添加 HTTP TTS 引擎时使用：</p>
+          <div class="bg-gray-50 rounded p-3 font-mono text-xs sm:text-sm break-all border">
+            <span x-text="baseUrl + '/legado/tts?text={{speakText}}&speed={{speakSpeed}}'"></span>
+          </div>
+          <div x-show="config.server?.auth_token" class="mt-3 bg-amber-50 border border-amber-200 rounded p-3 text-sm">
+            <p class="font-medium text-amber-800">已启用认证，需额外配置 Header：</p>
+            <code class="block mt-1 text-xs text-amber-700" x-text="'Authorization: Bearer ' + (config.server?.auth_token || '')"></code>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+          <h3 class="text-base sm:text-lg font-semibold mb-3">已配置引擎的音色</h3>
+          <p class="text-gray-600 text-sm mb-3">以下音色可直接导入阅读 App，每个音色生成独立的朗读引擎配置。</p>
+          <div x-show="legadoConfigs.length === 0" class="text-gray-400 text-sm py-4 text-center">
+            暂无可用音色，请先在「引擎管理」中添加引擎
+          </div>
+          <div class="space-y-3">
+            <template x-for="cfg in legadoConfigs" :key="cfg.id">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-gray-50 rounded-lg">
+                <div class="min-w-0">
+                  <span class="font-medium text-sm" x-text="cfg.name"></span>
+                </div>
+                <div class="flex gap-2 flex-shrink-0">
+                  <button @click="importSingleToLegado(cfg)" class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">导入</button>
+                  <button @click="copyLegadoConfig(cfg)" class="px-3 py-1 border text-xs rounded hover:bg-gray-100">复制配置</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
       </div>
 
       <!-- ===== Settings ===== -->
