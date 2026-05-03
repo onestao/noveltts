@@ -121,7 +121,12 @@ func (p *DoubaoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) 
 	if err != nil {
 		log.Printf("[doubao] ERROR: websocket dial failed: %v", err)
 		if resp != nil {
-			log.Printf("[doubao] handshake response: status=%d", resp.StatusCode)
+			log.Printf("[doubao] handshake response: status=%d headers=%v", resp.StatusCode, resp.Header)
+			body := make([]byte, 2048)
+			if n, readErr := resp.Body.Read(body); readErr == nil {
+				log.Printf("[doubao] handshake body: %s", truncate(string(body[:n]), 500))
+			}
+			resp.Body.Close()
 		}
 		return nil, "", fmt.Errorf("websocket dial: %w", err)
 	}

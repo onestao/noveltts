@@ -242,7 +242,10 @@ function app() {
       if (this.providerForm.type === 'doubao') {
         const doubaoExtra = {};
         if (this.providerForm.cookie) {
-          doubaoExtra.cookies = this.providerForm.cookie.split(/[;\n]/).map(c => c.trim()).filter(c => c);
+          doubaoExtra.cookies = this.providerForm.cookie
+            .split(/\r?\n/)
+            .map(c => c.trim())
+            .filter(c => c);
         }
         if (this.providerForm.ws_url) {
           doubaoExtra.ws_url = this.providerForm.ws_url;
