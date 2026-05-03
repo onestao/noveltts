@@ -239,8 +239,15 @@ function app() {
         default_voice: this.providerForm.default_voice,
       };
 
-      if (this.providerForm.type === 'doubao' && this.providerForm.cookie) {
-        payload.extra = { cookies: this.providerForm.cookie.split(/[;\n]/).map(c => c.trim()).filter(c => c) };
+      if (this.providerForm.type === 'doubao') {
+        const doubaoExtra = {};
+        if (this.providerForm.cookie) {
+          doubaoExtra.cookies = this.providerForm.cookie.split(/[;\n]/).map(c => c.trim()).filter(c => c);
+        }
+        if (this.providerForm.ws_url) {
+          doubaoExtra.ws_url = this.providerForm.ws_url;
+        }
+        if (Object.keys(doubaoExtra).length > 0) payload.extra = doubaoExtra;
       }
 
       if (this.providerForm.type === 'mimo') {

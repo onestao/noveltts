@@ -17,29 +17,37 @@ import (
 	"noveltts/internal/model"
 )
 
+type doubaoExtra struct {
+	Cookies []string `json:"cookies"`
+	WsURL   string   `json:"ws_url,omitempty"`
+}
+
 type DoubaoProvider struct {
 	name      string
 	cookies   []string
+	wsURL     string
 	mu        sync.RWMutex
 	cookieIdx int
 }
 
 func NewDoubaoProvider(cfg model.ProviderConfig) *DoubaoProvider {
 	var cookies []string
+	var wsURL string
 	if cfg.Extra != nil {
 		var extra doubaoExtra
 		if json.Unmarshal(cfg.Extra, &extra) == nil {
 			cookies = extra.Cookies
+			wsURL = extra.WsURL
 		}
+	}
+	if wsURL == "" {
+		wsURL = "wss://amantha.doubao.com/latasr/api/ws/tts/v1"
 	}
 	return &DoubaoProvider{
 		name:    cfg.Name,
 		cookies: cookies,
+		wsURL:   wsURL,
 	}
-}
-
-type doubaoExtra struct {
-	Cookies []string `json:"cookies"`
 }
 
 func (p *DoubaoProvider) Name() string { return p.name }
@@ -73,8 +81,10 @@ type doubaoAudioData struct {
 func (p *DoubaoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) (io.ReadCloser, string, error) {
 	cookie := p.nextCookie()
 	if cookie == "" {
+		log.Printf("[doubao] ERROR: no cookie configured")
 		return nil, "", fmt.Errorf("no cookie configured for Doubao provider")
 	}
+	log.Printf("[doubao] cookie len=%d, first20=%s", len(cookie), truncate(cookie, 20))
 
 	speaker := req.Voice
 	if speaker == "" {
@@ -86,7 +96,8 @@ func (p *DoubaoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) 
 		speed = 5
 	}
 
-	wsURL := "wss://amantha.doubao.com/latasr/api/ws/tts/v1"
+	wsURL := p.wsURL
+	log.Printf("[doubao] ws_url=%s speaker=%s speed=%d text_len=%d", wsURL, speaker, speed, len(req.Text))
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
@@ -98,11 +109,17 @@ func (p *DoubaoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) 
 	headers.Set("Origin", "https://www.doubao.com")
 	headers.Set("Accept-Language", "zh,zh-CN;q=0.9")
 
-	conn, _, err := dialer.DialContext(ctx, wsURL, headers)
+	log.Printf("[doubao] dialing websocket...")
+	conn, resp, err := dialer.DialContext(ctx, wsURL, headers)
 	if err != nil {
+		log.Printf("[doubao] ERROR: websocket dial failed: %v", err)
+		if resp != nil {
+			log.Printf("[doubao] handshake response: status=%d", resp.StatusCode)
+		}
 		return nil, "", fmt.Errorf("websocket dial: %w", err)
 	}
 	defer conn.Close()
+	log.Printf("[doubao] websocket connected, resp_status=%d", resp.StatusCode)
 
 	ttsReq := doubaoTTSRequest{
 		AID:        497858,
@@ -116,41 +133,54 @@ func (p *DoubaoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) 
 	}
 
 	reqJSON, _ := json.Marshal(ttsReq)
+	log.Printf("[doubao] sending tts request: %s", string(reqJSON))
 	if err := conn.WriteMessage(websocket.TextMessage, reqJSON); err != nil {
+		log.Printf("[doubao] ERROR: send tts request: %v", err)
 		return nil, "", fmt.Errorf("send tts request: %w", err)
 	}
 
 	textBytes := []byte(req.Text)
+	log.Printf("[doubao] sending text: len=%d, first50=%s", len(req.Text), truncate(req.Text, 50))
 	if err := conn.WriteMessage(websocket.BinaryMessage, textBytes); err != nil {
+		log.Printf("[doubao] ERROR: send text: %v", err)
 		return nil, "", fmt.Errorf("send text: %w", err)
 	}
 
 	var audioBuf bytes.Buffer
 	done := false
+	msgCount := 0
 
+	log.Printf("[doubao] waiting for messages...")
 	for !done {
 		msgType, msg, err := conn.ReadMessage()
 		if err != nil {
 			if ctx.Err() != nil {
+				log.Printf("[doubao] ERROR: context cancelled")
 				return nil, "", ctx.Err()
 			}
+			log.Printf("[doubao] ERROR: read message: %v (msgCount=%d)", err, msgCount)
 			break
 		}
 
+		msgCount++
 		if msgType == websocket.TextMessage {
 			var wsMsg doubaoWSMessage
 			if json.Unmarshal(msg, &wsMsg) != nil {
+				log.Printf("[doubao] text msg (unmarshal failed): %s", truncate(string(msg), 200))
 				continue
 			}
 
+			log.Printf("[doubao] event=%s", wsMsg.Event)
 			switch wsMsg.Event {
 			case "finish":
 				done = true
+				log.Printf("[doubao] finished, audio_buf=%d bytes", audioBuf.Len())
 			case "error":
 				var errMsg struct {
 					Message string `json:"message"`
 				}
 				json.Unmarshal(wsMsg.Data, &errMsg)
+				log.Printf("[doubao] ERROR: server error: %s", errMsg.Message)
 				return nil, "", fmt.Errorf("doubao error: %s", errMsg.Message)
 			case "audio":
 				var audioData doubaoAudioData
@@ -158,11 +188,15 @@ func (p *DoubaoProvider) Synthesize(ctx context.Context, req *model.TTSRequest) 
 					decoded, err := decodeDoubaoAudio(audioData.Audio)
 					if err == nil {
 						audioBuf.Write(decoded)
+						log.Printf("[doubao] audio chunk: decoded=%d bytes, total=%d", len(decoded), audioBuf.Len())
+					} else {
+						log.Printf("[doubao] audio decode error: %v", err)
 					}
 				}
 			}
 		} else if msgType == websocket.BinaryMessage {
 			audioBuf.Write(msg)
+			log.Printf("[doubao] binary msg: %d bytes, total=%d", len(msg), audioBuf.Len())
 		}
 	}
 
@@ -281,4 +315,11 @@ func (p *DoubaoProvider) ListVoices(ctx context.Context, modelID string) ([]mode
 		{ID: "ICL_5a413fbc14fc", Name: "沉稳皓轩", Gender: "male"},
 		{ID: "ICL_0ce6ef379e73", Name: "温柔俊彦", Gender: "male"},
 	}, nil
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

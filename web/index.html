@@ -227,6 +227,12 @@
                   <textarea x-model="providerForm.cookie" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm font-mono"
                             placeholder="在浏览器中登录 doubao.com 后，F12 → Application → Cookies 复制全部 Cookie 值"></textarea>
                 </div>
+                <div x-show="providerForm.type === 'doubao'">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">WebSocket 地址</label>
+                  <input x-model="providerForm.ws_url" class="w-full border rounded-lg px-3 py-2 text-sm font-mono"
+                         placeholder="wss://... （留空使用默认地址，需要从抓包获取）">
+                  <p class="text-xs text-gray-400 mt-1">需要通过抓包工具获取豆包 TTS 的 WebSocket 地址</p>
+                </div>
 
                 <!-- Base URL (hidden for MiMo, auto-filled) -->
                 <div x-show="providerForm.type !== 'mimo'">
